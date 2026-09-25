@@ -11,6 +11,6 @@ Projeto desenvolvido utilizando exclusivamente **HTML5**, com o objetivo de prat
 ## ▶️ Como executar
 
 1. Baixe ou clone este repositório.
-2. Abra o arquivo `index.html` em um navegador.
+2. Abra o arquivo `tela.html` em um navegador.
 
 
