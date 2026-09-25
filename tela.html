@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sistema de Login</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --text:#1a1a1a; --muted:#6b7280;
+    --primary:#4f46e5; --primary-dark:#4338ca; --danger:#dc2626; --border:#e5e7eb;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#111214; --card:#1c1d21; --text:#f2f2f3; --muted:#9ca3af; --border:#2e2f33;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#111214; --card:#1c1d21; --text:#f2f2f3; --muted:#9ca3af; --border:#2e2f33;
+  }
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:16px;
+    padding:32px; width:100%; max-width:380px; box-shadow:0 4px 24px rgba(0,0,0,.06);
+  }
+  h1{font-size:20px; margin:0 0 4px;}
+  p.sub{color:var(--muted); font-size:13px; margin:0 0 20px;}
+  .tabs{display:flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:20px;}
+  .tab{flex:1; text-align:center; padding:10px; cursor:pointer; font-size:14px; color:var(--muted); background:transparent; border:none;}
+  .tab.active{background:var(--primary); color:#fff; font-weight:600;}
+  label{display:block; font-size:13px; margin-bottom:6px; color:var(--muted);}
+  input{
+    width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px;
+    background:transparent; color:var(--text); font-size:14px; margin-bottom:14px;
+  }
+  input:focus{outline:2px solid var(--primary); outline-offset:1px;}
+  button.primary{
+    width:100%; padding:11px; border:none; border-radius:8px; background:var(--primary);
+    color:#fff; font-size:14px; font-weight:600; cursor:pointer;
+  }
+  button.primary:hover{background:var(--primary-dark);}
+  button.logout{
+    width:100%; padding:11px; border:1px solid var(--danger); border-radius:8px;
+    background:transparent; color:var(--danger); font-size:14px; font-weight:600; cursor:pointer; margin-top:8px;
+  }
+  .msg{font-size:13px; margin:-6px 0 14px; min-height:16px;}
+  .msg.error{color:var(--danger);}
+  .msg.ok{color:#16a34a;}
+  .hidden{display:none !important;}
+  .avatar{
+    width:56px; height:56px; border-radius:50%; background:var(--primary); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700;
+    margin:0 auto 14px;
+  }
+  .welcome{text-align:center;}
+  .welcome h2{margin:0 0 4px; font-size:18px;}
+  .welcome p{color:var(--muted); font-size:13px; margin:0 0 24px;}
+</style>
+</head>
+<body>
+
+<div class="card" id="app"></div>
+
+<script>
+const STORAGE_KEY = 'lg_users_v1';
+const SESSION_KEY = 'lg_session_v1';
+
+function getUsers(){
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+  catch(e){ return {}; }
+}
+function saveUsers(users){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(users)); }
+  catch(e){ console.error('Erro ao salvar', e); }
+}
+function getSession(){
+  try { return localStorage.getItem(SESSION_KEY); }
+  catch(e){ return null; }
+}
+function setSession(email){
+  try { localStorage.setItem(SESSION_KEY, email); }
+  catch(e){}
+}
+function clearSession(){
+  try { localStorage.removeItem(SESSION_KEY); }
+  catch(e){}
+}
+
+// Hash simples (SHA-256) só para não guardar senha em texto puro.
+// Isso é uma demo front-end; em produção use um backend com hashing seguro (bcrypt/argon2) + HTTPS.
+async function hash(text){
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+let mode = 'login'; // 'login' | 'cadastro'
+
+function render(){
+  const session = getSession();
+  const app = document.getElementById('app');
+
+  if (session){
+    const users = getUsers();
+    const user = users[session];
+    const inicial = (user?.nome || session)[0].toUpperCase();
+    app.innerHTML = `
+      <div class="welcome">
+        <div class="avatar">${inicial}</div>
+        <h2>Olá, ${user?.nome || session}!</h2>
+        <p>${session}</p>
+        <button class="logout" id="btnLogout">Sair</button>
+      </div>
+    `;
+    document.getElementById('btnLogout').onclick = () => {
+      clearSession();
+      render();
+    };
+    return;
+  }
+
+  app.innerHTML = `
+    <h1>Bem-vindo</h1>
+    <p class="sub">Entre na sua conta ou crie uma nova.</p>
+    <div class="tabs">
+      <button class="tab ${mode==='login'?'active':''}" data-tab="login">Entrar</button>
+      <button class="tab ${mode==='cadastro'?'active':''}" data-tab="cadastro">Cadastrar</button>
+    </div>
+    <form id="form">
+      ${mode==='cadastro' ? `
+        <label for="nome">Nome</label>
+        <input id="nome" type="text" placeholder="Seu nome" required>
+      ` : ''}
+      <label for="email">E-mail</label>
+      <input id="email" type="email" placeholder="voce@exemplo.com" required>
+      <label for="senha">Senha</label>
+      <input id="senha" type="password" placeholder="••••••••" minlength="6" required>
+      <div class="msg" id="msg"></div>
+      <button type="submit" class="primary">${mode==='login' ? 'Entrar' : 'Criar conta'}</button>
+    </form>
+  `;
+
+  document.querySelectorAll('.tab').forEach(btn=>{
+    btn.onclick = () => { mode = btn.dataset.tab; render(); };
+  });
+
+  document.getElementById('form').onsubmit = async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('msg');
+    msg.textContent = ''; msg.className = 'msg';
+
+    const email = document.getElementById('email').value.trim().toLowerCase();
+    const senha = document.getElementById('senha').value;
+    const users = getUsers();
+
+    if (mode === 'cadastro'){
+      const nome = document.getElementById('nome').value.trim();
+      if (users[email]){
+        msg.textContent = 'Este e-mail já está cadastrado.';
+        msg.classList.add('error');
+        return;
+      }
+      users[email] = { nome, senhaHash: await hash(senha) };
+      saveUsers(users);
+      msg.textContent = 'Conta criada! Você já pode entrar.';
+      msg.classList.add('ok');
+      mode = 'login';
+      setTimeout(render, 900);
+    } else {
+      const user = users[email];
+      if (!user){
+        msg.textContent = 'E-mail não encontrado.';
+        msg.classList.add('error');
+        return;
+      }
+      const senhaHash = await hash(senha);
+      if (senhaHash !== user.senhaHash){
+        msg.textContent = 'Senha incorreta.';
+        msg.classList.add('error');
+        return;
+      }
+      setSession(email);
+      render();
+    }
+  };
+}
+
+render();
+</script>
+</body>
+</html>
